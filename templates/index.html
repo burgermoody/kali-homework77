@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 用户管理系统{% endblock %}
+
+{% block content %}
+<div class="card">
+    {% if user %}
+        <h2>欢迎回来，{{ user.username }}！</h2>
+        <div class="user-info">
+            <h3>用户信息</h3>
+            <table class="info-table">
+                <tr>
+                    <td class="info-label">用户名</td>
+                    <td class="info-value">{{ user.username }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">密码</td>
+                    <td class="info-value">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</td>
+                </tr>
+                <tr>
+                    <td class="info-label">邮箱</td>
+                    <td class="info-value">{{ user.email }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">手机</td>
+                    <td class="info-value">{{ user.phone }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">角色</td>
+                    <td class="info-value">{{ user.role }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">余额</td>
+                    <td class="info-value">{{ user.balance }}</td>
+                </tr>
+            </table>
+        </div>
+        <div class="action-row">
+            <form method="post" action="/logout" style="display:inline;">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">退出登录</button>
+            </form>
+        </div>
+    {% else %}
+        <div class="welcome-guest">
+            <h2>请先登录</h2>
+            <p>您还没有登录，请登录后查看用户信息。</p>
+            <a href="/login" class="btn btn-primary">前往登录</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
