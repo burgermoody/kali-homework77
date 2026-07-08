@@ -6,6 +6,7 @@
 <div class="card">
     {% if user %}
         <h2>欢迎回来，{{ user.username }}！</h2>
+
         <div class="user-info">
             <h3>用户信息</h3>
             <table class="info-table">
@@ -25,16 +26,63 @@
                     <td class="info-label">手机</td>
                     <td class="info-value">{{ user.phone }}</td>
                 </tr>
+                {% if user.role %}
                 <tr>
                     <td class="info-label">角色</td>
                     <td class="info-value">{{ user.role }}</td>
                 </tr>
+                {% endif %}
+                {% if user.balance is defined %}
                 <tr>
                     <td class="info-label">余额</td>
                     <td class="info-value">{{ user.balance }}</td>
                 </tr>
+                {% endif %}
             </table>
         </div>
+
+        <div class="search-section">
+            <h3>搜索用户</h3>
+            <form method="get" action="/search" class="search-form">
+                <div class="search-row">
+                    <input type="text" id="keyword" name="keyword" placeholder="输入用户名或邮箱搜索..." class="search-input" value="{{ search_keyword or '' }}">
+                    <button type="submit" class="btn btn-primary search-btn">搜索</button>
+                </div>
+            </form>
+        </div>
+
+        {% if search_results is defined %}
+        <div class="search-results">
+            {% if search_keyword %}
+                <h3>搜索结果：{{ search_keyword }}</h3>
+                {% if search_results %}
+                <table class="info-table search-table">
+                    <thead>
+                        <tr>
+                            <th class="info-label">ID</th>
+                            <th class="info-label">用户名</th>
+                            <th class="info-label">邮箱</th>
+                            <th class="info-label">手机</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in search_results %}
+                        <tr>
+                            <td class="info-value">{{ row.id }}</td>
+                            <td class="info-value">{{ row.username }}</td>
+                            <td class="info-value">{{ row.email }}</td>
+                            <td class="info-value">{{ row.phone }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="no-result">无搜索结果</p>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="action-row">
             <form method="post" action="/logout" style="display:inline;">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
