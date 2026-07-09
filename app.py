@@ -6,8 +6,10 @@ from datetime import timedelta
 
 from flask import Flask, render_template, request, redirect, session, abort, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
@@ -24,6 +26,7 @@ DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_DIR = os.path.join(BASE_DIR, 'data')
 DB_PATH = os.path.join(DB_DIR, 'users.db')
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 
 
 def init_db():
@@ -269,6 +272,37 @@ def search():
                            search_results=results, search_keyword=keyword)
 
 
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    """用户头像上传"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    uploaded_url = None
+    error = None
+
+    if request.method == "POST":
+        _validate_csrf()
+
+        if "file" not in request.files:
+            error = "没有选择文件"
+        else:
+            f = request.files["file"]
+            if f.filename == "":
+                error = "没有选择文件"
+            else:
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                safe_name = secure_filename(f.filename)
+                if not safe_name:
+                    error = "文件名不合法"
+                else:
+                    save_path = os.path.join(UPLOAD_FOLDER, safe_name)
+                    f.save(save_path)
+                    uploaded_url = url_for("static", filename=f"uploads/{safe_name}")
+
+    return render_template("upload.html", uploaded_url=uploaded_url, error=error)
+
+
 @app.route("/logout", methods=["POST"])
 def logout():
     _validate_csrf()
@@ -278,4 +312,4 @@ def logout():
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=DEBUG, host="0.0.0.0", port=5000)

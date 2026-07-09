@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}上传头像 - 用户管理系统{% endblock %}
+
+{% block content %}
+<div class="card upload-card">
+    <h2>上传头像</h2>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    {% if uploaded_url %}
+    <div class="upload-success">
+        <p class="alert alert-success">上传成功！</p>
+        <div class="preview-section">
+            <img src="{{ uploaded_url }}" class="avatar-preview" alt="头像预览">
+        </div>
+        <p class="file-url">文件路径：<a href="{{ uploaded_url }}" target="_blank">{{ uploaded_url }}</a></p>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label for="file">选择图片文件</label>
+            <input type="file" id="file" name="file" class="file-input">
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">上传</button>
+        </div>
+    </form>
+
+    <div class="action-row">
+        <a href="/" class="btn btn-primary" style="width:auto;padding:10px 36px;">返回首页</a>
+    </div>
+</div>
+{% endblock %}

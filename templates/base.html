@@ -14,6 +14,7 @@
         <div class="nav-right">
             {% if session.get("username") %}
                 <span class="nav-welcome">欢迎，{{ session["username"] }}</span>
+                <a href="/upload" class="nav-link">上传头像</a>
                 <form method="post" action="/logout" class="inline-form">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="nav-link-btn">退出</button>

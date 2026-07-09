@@ -342,3 +342,44 @@ a {
     padding: 16px 0;
     text-align: center;
 }
+
+/* ===== 上传头像 ===== */
+.upload-card {
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+.file-input {
+    width: 100%;
+    padding: 10px 0;
+    font-size: 14px;
+}
+
+.upload-success {
+    margin-bottom: 20px;
+}
+
+.preview-section {
+    text-align: center;
+    margin: 16px 0;
+}
+
+.avatar-preview {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-url {
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+    word-break: break-all;
+}
+
+.file-url a {
+    color: #667eea;
+    text-decoration: underline;
+}
