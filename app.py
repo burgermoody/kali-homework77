@@ -38,12 +38,23 @@ def init_db():
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         email TEXT,
-        phone TEXT
+        phone TEXT,
+        balance REAL DEFAULT 0,
+        role TEXT DEFAULT 'user'
     )''')
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ('admin', generate_password_hash('admin123'), 'admin@example.com', '13800138000'))
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ('alice', generate_password_hash('alice2025'), 'alice@example.com', '13900139001'))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance, role) VALUES (?, ?, ?, ?, ?, ?)",
+              ('admin', generate_password_hash('admin123'), 'admin@example.com', '13800138000', 99999, 'admin'))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance, role) VALUES (?, ?, ?, ?, ?, ?)",
+              ('alice', generate_password_hash('alice2025'), 'alice@example.com', '13900139001', 100, 'user'))
+    # 兼容旧表：如 balance/role 列不存在则添加
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+    except:
+        pass
     conn.commit()
     conn.close()
     print("[init_db] 数据库初始化完成")
@@ -133,6 +144,51 @@ def _get_user_info(username):
     except:
         pass
     return None
+
+
+def _get_user_by_id(user_id):
+    """根据 user_id 查询用户资料（含余额）"""
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        return None
+    # 先从 SQLite 查询
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT id, username, email, phone, balance, role FROM users WHERE id = ?", (uid,))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            return {
+                "id": row[0],
+                "username": row[1],
+                "email": row[2],
+                "phone": row[3],
+                "balance": row[4],
+                "role": row[5],
+            }
+    except:
+        pass
+    return None
+
+
+def _update_balance(user_id, amount):
+    """更新用户余额：balance = balance + amount"""
+    try:
+        uid = int(user_id)
+        amt = float(amount)
+    except (ValueError, TypeError):
+        return False
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amt, uid))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
 
 
 def _validate_csrf():
@@ -301,6 +357,40 @@ def upload():
                     uploaded_url = url_for("static", filename=f"uploads/{safe_name}")
 
     return render_template("upload.html", uploaded_url=uploaded_url, error=error)
+
+
+@app.route("/profile", methods=["GET"])
+def profile():
+    """个人中心 — 根据 user_id 查询用户资料，不验证登录身份"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "缺少 user_id 参数", 400
+
+    user_info = _get_user_by_id(user_id)
+    if not user_info:
+        return "用户不存在", 404
+
+    return render_template("profile.html", user=user_info)
+
+
+@app.route("/recharge", methods=["POST"])
+def recharge():
+    """充值 — 直接增加余额，不做正负校验"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    _validate_csrf()
+    user_id = request.form.get("user_id")
+    amount = request.form.get("amount")
+
+    if not user_id or amount is None:
+        return "缺少参数", 400
+
+    _update_balance(user_id, amount)
+    return redirect(url_for("profile", user_id=user_id))
 
 
 @app.route("/logout", methods=["POST"])
