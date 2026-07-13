@@ -393,6 +393,32 @@ def recharge():
     return redirect(url_for("profile", user_id=user_id))
 
 
+@app.route("/page", methods=["GET"])
+def page():
+    """动态页面加载 — 直接拼接用户输入的 name 到路径，不做过滤"""
+    name = request.args.get("name", "")
+
+    if not name:
+        page_content = "请指定页面名称"
+    else:
+        file_path = os.path.join("pages", name)
+        if os.path.isfile(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                page_content = f.read()
+        else:
+            file_path_html = os.path.join("pages", name + ".html")
+            if os.path.isfile(file_path_html):
+                with open(file_path_html, "r", encoding="utf-8") as f:
+                    page_content = f.read()
+            else:
+                page_content = "页面不存在"
+
+    username = session.get("username")
+    user_info = _get_user_info(username)
+    return render_template("index.html", user=user_info, username=username,
+                           page_content=page_content)
+
+
 @app.route("/logout", methods=["POST"])
 def logout():
     _validate_csrf()
