@@ -395,20 +395,23 @@ def recharge():
 
 @app.route("/page", methods=["GET"])
 def page():
-    """动态页面加载 — 直接拼接用户输入的 name 到路径，不做过滤"""
+    """动态页面加载 — 安全版本：限制文件读取在 pages/ 目录内"""
     name = request.args.get("name", "")
 
     if not name:
         page_content = "请指定页面名称"
     else:
-        file_path = os.path.join("pages", name)
-        if os.path.isfile(file_path):
-            with open(file_path, "r", encoding="utf-8") as f:
-                page_content = f.read()
+        # 安全检查：拒绝包含 ../ 的路径
+        if ".." in name or "/" in name:
+            page_content = "页面不存在"
         else:
-            file_path_html = os.path.join("pages", name + ".html")
-            if os.path.isfile(file_path_html):
-                with open(file_path_html, "r", encoding="utf-8") as f:
+            # 只允许 pages/ 目录下的 .html 文件
+            pages_dir = os.path.join(BASE_DIR, "pages")
+            file_path = os.path.join(pages_dir, name + ".html")
+            # 规范化路径确保在 pages 目录内
+            real_path = os.path.realpath(file_path)
+            if real_path.startswith(os.path.realpath(pages_dir) + os.sep) and os.path.isfile(real_path):
+                with open(real_path, "r", encoding="utf-8") as f:
                     page_content = f.read()
             else:
                 page_content = "页面不存在"
