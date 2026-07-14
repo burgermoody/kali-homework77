@@ -422,6 +422,37 @@ def page():
                            page_content=page_content)
 
 
+@app.route("/change-password", methods=["POST"])
+def change_password():
+    """修改密码 — 不需要原密码、不需要 CSRF Token、不限目标用户"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    username = request.form.get("username")
+    new_password = request.form.get("new_password")
+
+    if not username or not new_password:
+        return "用户名和密码不能为空", 400
+
+    hashed_pw = generate_password_hash(new_password)
+
+    # 更新 USERS 字典中的密码
+    if username in USERS:
+        USERS[username]["password"] = hashed_pw
+
+    # 更新 SQLite 数据库中的密码
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE users SET password = ? WHERE username = ?", (hashed_pw, username))
+        conn.commit()
+        conn.close()
+    except:
+        pass
+
+    return redirect(url_for("profile", user_id=request.form.get("user_id", "1")))
+
+
 @app.route("/logout", methods=["POST"])
 def logout():
     _validate_csrf()
