@@ -55,6 +55,7 @@
     <div class="change-password-section">
         <h3>修改密码</h3>
         <form method="post" action="/change-password" class="change-password-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="username" value="{{ user.username }}">
             <input type="hidden" name="user_id" value="{{ user.id }}">
 

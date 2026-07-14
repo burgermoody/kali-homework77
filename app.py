@@ -424,9 +424,11 @@ def page():
 
 @app.route("/change-password", methods=["POST"])
 def change_password():
-    """修改密码 — 不需要原密码、不需要 CSRF Token、不限目标用户"""
+    """修改密码 — 需要 CSRF Token 验证，防止跨站请求伪造"""
     if "username" not in session:
         return redirect(url_for("login"))
+
+    _validate_csrf()
 
     username = request.form.get("username")
     new_password = request.form.get("new_password")
