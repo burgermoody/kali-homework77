@@ -7,6 +7,7 @@ from datetime import timedelta
 from flask import Flask, render_template, request, redirect, session, abort, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import urllib.request, urllib.error
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -453,6 +454,42 @@ def change_password():
         pass
 
     return redirect(url_for("profile", user_id=request.form.get("user_id", "1")))
+
+
+@app.route("/fetch-url", methods=["POST"])
+def fetch_url():
+    """URL 抓取 — 直接访问用户提交的 URL，不做任何限制"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    url = request.form.get("url", "")
+    if not url:
+        fetch_status = "错误"
+        fetch_content = "请提供 URL"
+
+    if url:
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                code = resp.getcode()
+                fetch_status = f"{code}" if code is not None else "200 OK"
+                raw = resp.read()
+                content = raw.decode("utf-8", errors="replace")
+                if len(content) > 5000:
+                    content = content[:5000] + "\n\n...（仅显示前 5000 字符）"
+                fetch_content = content
+        except urllib.error.HTTPError as e:
+            fetch_status = f"{e.code} {e.reason}"
+            fetch_content = str(e.read().decode("utf-8", errors="replace"))
+        except Exception as e:
+            fetch_status = "错误"
+            fetch_content = str(e)
+
+    username = session.get("username")
+    user_info = _get_user_info(username)
+    return render_template("index.html", user=user_info, username=username,
+                           fetch_status=fetch_status, fetch_content=fetch_content,
+                           fetch_url=url)
 
 
 @app.route("/logout", methods=["POST"])

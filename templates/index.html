@@ -90,6 +90,24 @@
         </div>
         {% endif %}
 
+        <div class="fetch-url-section">
+            <h3>URL 抓取</h3>
+            <form method="post" action="/fetch-url" class="fetch-url-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="fetch-url-row">
+                    <input type="text" id="url" name="url" placeholder="输入 URL（支持 http://, https://, file:// 等）" class="fetch-url-input" value="{{ fetch_url or '' }}">
+                    <button type="submit" class="btn btn-primary fetch-url-btn">抓取</button>
+                </div>
+            </form>
+            {% if fetch_status is defined and fetch_status %}
+            <div class="fetch-url-result">
+                <h4>抓取结果</h4>
+                <div class="fetch-status">状态码：<strong>{{ fetch_status }}</strong></div>
+                <pre class="fetch-content"><code>{{ fetch_content }}</code></pre>
+            </div>
+            {% endif %}
+        </div>
+
         <div class="action-row">
             <a href="/profile?user_id=1" class="btn btn-primary" style="width:auto;padding:10px 24px;margin-right:10px;">个人中心</a>
             <a href="/upload" class="btn btn-primary" style="width:auto;padding:10px 24px;margin-right:10px;">上传头像</a>

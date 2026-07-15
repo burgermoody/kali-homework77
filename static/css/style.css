@@ -490,3 +490,82 @@ a {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
+
+/* ===== URL 抓取 ===== */
+.fetch-url-section {
+    margin: 24px 0;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.fetch-url-section h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #555;
+}
+
+.fetch-url-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.fetch-url-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.fetch-url-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.fetch-url-btn {
+    width: auto;
+    padding: 10px 24px;
+    white-space: nowrap;
+}
+
+.fetch-url-result {
+    margin-top: 16px;
+    padding: 14px;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+.fetch-url-result h4 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.fetch-status {
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.fetch-content {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #1e1e1e;
+    color: #f0f0f0;
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.fetch-content code {
+    background: none;
+    padding: 0;
+    color: #f0f0f0;
+}
