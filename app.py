@@ -458,32 +458,62 @@ def change_password():
 
 @app.route("/fetch-url", methods=["POST"])
 def fetch_url():
-    """URL 抓取 — 直接访问用户提交的 URL，不做任何限制"""
+    """URL 抓取 — 安全版本：限制协议并阻止内网地址"""
     if "username" not in session:
         return redirect(url_for("login"))
 
-    url = request.form.get("url", "")
+    url = request.form.get("url", "").strip()
     if not url:
         fetch_status = "错误"
         fetch_content = "请提供 URL"
 
     if url:
-        try:
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                code = resp.getcode()
-                fetch_status = f"{code}" if code is not None else "200 OK"
-                raw = resp.read()
-                content = raw.decode("utf-8", errors="replace")
-                if len(content) > 5000:
-                    content = content[:5000] + "\n\n...（仅显示前 5000 字符）"
-                fetch_content = content
-        except urllib.error.HTTPError as e:
-            fetch_status = f"{e.code} {e.reason}"
-            fetch_content = str(e.read().decode("utf-8", errors="replace"))
-        except Exception as e:
+        # 只允许 http 和 https 协议
+        if not url.startswith(("http://", "https://")):
             fetch_status = "错误"
-            fetch_content = str(e)
+            fetch_content = "不支持的 URL 协议，仅允许 http:// 和 https://"
+        else:
+            # 解析目标主机名，阻止内网地址
+            try:
+                from urllib.parse import urlparse
+                import socket
+                parsed = urlparse(url)
+                hostname = parsed.hostname
+                if not hostname:
+                    fetch_status = "错误"
+                    fetch_content = "无效的 URL"
+                else:
+                    ip = socket.gethostbyname(hostname)
+                    # 检查是否为内网地址
+                    if ip.startswith(("127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                                      "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+                                      "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+                                      "172.30.", "172.31.", "192.168.", "169.254.", "0.")) or ip == "::1":
+                        fetch_status = "错误"
+                        fetch_content = f"不允许访问内网地址：{ip}"
+                    else:
+                        try:
+                            req = urllib.request.Request(url)
+                            with urllib.request.urlopen(req, timeout=10) as resp:
+                                code = resp.getcode()
+                                fetch_status = f"{code}" if code is not None else "200"
+                                raw = resp.read()
+                                content = raw.decode("utf-8", errors="replace")
+                                if len(content) > 5000:
+                                    content = content[:5000] + "\n\n...（仅显示前 5000 字符）"
+                                fetch_content = content
+                        except urllib.error.HTTPError as e:
+                            fetch_status = f"{e.code} {e.reason}"
+                            fetch_content = str(e.read().decode("utf-8", errors="replace"))
+                        except Exception as e:
+                            fetch_status = "错误"
+                            fetch_content = str(e)
+            except socket.gaierror:
+                fetch_status = "错误"
+                fetch_content = f"无法解析主机名"
+            except Exception as e:
+                fetch_status = "错误"
+                fetch_content = str(e)
 
     username = session.get("username")
     user_info = _get_user_info(username)
