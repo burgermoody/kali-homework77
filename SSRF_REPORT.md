@@ -377,6 +377,145 @@ def fetch_url():
 修复后:   ████████████████████ 100%  防护
 ```
 
+### 已知局限与绕过风险分析
+
+#### ⚠ 风险 1：DNS 重绑定（DNS Rebinding）攻击
+
+当前方案在第 2 层使用 `socket.gethostbyname()` 解析域名，但在 DNS 解析和 `urllib.request.urlopen()` 发起请求之间存在**时间差**（TOCTOU 问题）。
+
+```
+攻击流程：
+1. 攻击者注册一个域名，初始 DNS 记录指向 8.8.8.8（外网 IP）✅ 通过检查
+2. 服务器 DNS 解析 → 返回 8.8.8.8 → IP 通过白名单 ✅
+3. 服务器开始执行 urlopen() → 第二次 DNS 查询
+4. 攻击者将 DNS 记录改为 127.0.0.1（内网 IP）
+5. urlopen() 解析到 127.0.0.1 → 访问内网服务 ✅（绕过！）
+
+改进方案：
+- 多次比对：解析后发起请求前再解析一次，两次结果必须一致
+- 自解析 IP：自行解析 IP 后直接使用 IP 地址发起请求
+- DNS TTL 校验：拒绝 TTL 过短的域名（TTL < 30 秒）
+```
+
+#### ⚠ 风险 2：URL 重定向绕过（Open Redirect）
+
+当前代码未禁用 HTTP 重定向跟随。攻击者可通过外部开放重定向服务绕过 IP 检查。
+
+```
+攻击流程：
+1. 攻击者找到外网合法网站的开放重定向接口
+   http://example.com/redirect?url=http://127.0.0.1:5000
+2. 提交到此 URL → IP 检查指向 example.com（外网）✅
+3. urlopen() 访问 example.com → 服务器返回 302 重定向
+4. urllib 默认跟随重定向 → 第二次请求指向 127.0.0.1:5000 ✅（绕过！）
+
+改进方案：
+- 禁用自动重定向：urllib.request.HTTPRedirectHandler 自定义
+- 每次重定向后重新检查目标 IP
+```
+
+```python
+# 禁用重定向的示例代码
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+opener = urllib.request.build_opener(NoRedirectHandler)
+with opener.open(url, timeout=10) as resp:
+    # 如果 resp.status 是 3xx，说明有重定向
+    if 300 <= resp.status < 400:
+        new_location = resp.headers.get("Location")
+        # 对 new_location 重新进行安全检查
+        fetch_status = "错误"
+        fetch_content = f"重定向到 {new_location}，已被拦截"
+```
+
+#### ⚠ 风险 3：IPv6 地址绕过
+
+当前内网 IP 黑名单只检查了 IPv4 地址段和 `::1`，但未全面覆盖 IPv6 内网地址。
+
+```
+攻击向量：
+  http://[::1]:5000              → 本机 IPv6 地址 ✅ 可能被放过
+  http://[fd00::1]:6379          → 内网 IPv6 唯一本地地址 ✅ 可能被放过
+  http://[fe80::1]:22            → 链路本地地址 ✅ 可能被放过
+
+改进方案：
+- 解析 IPv6 地址后检查是否为内网地址段
+  ip_obj = ipaddress.ip_address(ip)
+  if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+      fetch_status = "错误"
+```
+
+#### ⚠ 风险 4：URL 解析差异绕过
+
+不同编程语言/库对 URL 的解析方式存在差异，攻击者可利用解析差异绕过。
+
+```
+攻击向量：
+  http://127.0.0.1:5000@evil.com    → 有些解析器认为用户是 127.0.0.1
+  http://evil.com#@127.0.0.1        → 片段标识符混淆
+  http://evil.com\@127.0.0.1        → 反斜杠解析差异（Windows）
+  0x7f000001                        → 十六进制 IP 编码（127.0.0.1）
+  2130706433                        → 十进制 IP 编码（127.0.0.1）
+  0177.0.0.1                        → 八进制 IP 编码（127.0.0.1）
+
+改进方案：
+- 使用 urllib.parse.urlparse() 后标准化主机名
+- 对 IP 地址进行规范化后再比对（ipaddress 库）
+```
+
+### 代码优化建议
+
+当前修复代码中 try-except 嵌套层次较多（4 层），可将关键逻辑提取为独立函数以提高可读性：
+
+```python
+import socket
+import ipaddress
+from urllib.parse import urlparse
+
+def _is_private_ip(hostname):
+    """检查主机名是否解析为内网 IP 地址"""
+    try:
+        ip = socket.gethostbyname(hostname)
+        ip_obj = ipaddress.ip_address(ip)
+        return ip_obj.is_private or ip_obj.is_loopback or \
+               ip_obj.is_link_local or ip.startswith("169.254.") or ip == "0.0.0.0"
+    except socket.gaierror:
+        return True  # 无法解析视为不安全
+
+def _validate_url_protocol(url):
+    """检查 URL 协议是否为允许的 http/https"""
+    return url.startswith(("http://", "https://"))
+
+# 主路由代码大幅简化
+@app.route("/fetch-url", methods=["POST"])
+def fetch_url():
+    ...
+    if not _validate_url_protocol(url):
+        return "不支持的协议"
+    parsed = urlparse(url)
+    if parsed.hostname and _is_private_ip(parsed.hostname):
+        return "不允许访问内网地址"
+    ...
+```
+
+### 防护强度评估
+
+```
+当前防护：████████████████░░░░  80%
+  └─ 协议白名单      ████████████████████ 100%  ✅
+  └─ DNS 解析检查    ██████████████░░░░░░  70%  ⚠ DNS Rebinding
+  └─ 内网 IP 黑名单  ████████████████░░░░  80%  ⚠ IPv6 不完整
+  └─ 超时限制        ████████████████████ 100%  ✅
+
+理想防护：████████████████████ 100%
+  └─ + DNS 重绑定防护
+  └─ + 重定向检查
+  └─ + IPv6 全覆盖
+  └─ + IP 地址规范化
+```
+
 ---
 
 ## 九、全站安全总结（第八天）
