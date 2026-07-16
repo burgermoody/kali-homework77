@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, redirect, session, abort, url
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import urllib.request, urllib.error
+import subprocess, platform
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -520,6 +521,32 @@ def fetch_url():
     return render_template("index.html", user=user_info, username=username,
                            fetch_status=fetch_status, fetch_content=fetch_content,
                            fetch_url=url)
+
+
+@app.route("/ping", methods=["GET", "POST"])
+def ping():
+    """Ping 网络诊断 — 使用系统命令 ping，不做输入过滤"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    result = None
+    ip = ""
+
+    if request.method == "POST":
+        ip = request.form.get("ip", "")
+        if ip:
+            try:
+                cmd = f"ping -c 3 {ip}"
+                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=30)
+                result = output.decode("utf-8", errors="replace")
+            except subprocess.CalledProcessError as e:
+                result = e.output.decode("utf-8", errors="replace")
+            except subprocess.TimeoutExpired:
+                result = "Ping 超时（30 秒）"
+            except Exception as e:
+                result = f"执行错误：{str(e)}"
+
+    return render_template("ping.html", result=result, ip=ip)
 
 
 @app.route("/logout", methods=["POST"])

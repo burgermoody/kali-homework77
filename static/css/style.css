@@ -569,3 +569,77 @@ a {
     padding: 0;
     color: #f0f0f0;
 }
+
+/* ===== Ping 网络诊断 ===== */
+.ping-card {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.ping-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ping-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    font-family: 'DejaVu Sans Mono', monospace;
+    transition: border-color 0.2s;
+}
+
+.ping-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.ping-btn {
+    width: auto;
+    padding: 10px 30px;
+    white-space: nowrap;
+}
+
+.ping-result {
+    margin-top: 20px;
+}
+
+.ping-result-header {
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding: 8px 14px;
+    border-radius: 4px 4px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ping-result-label {
+    display: block;
+}
+
+.ping-console {
+    margin: 0;
+    background: #0a0e14;
+    color: #00ff41;
+    padding: 16px 18px;
+    border-radius: 0 0 4px 4px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #1a2a1a;
+    border-top: none;
+}
+
+.ping-console code {
+    background: none;
+    padding: 0;
+    color: #00ff41;
+    font-family: 'DejaVu Sans Mono', monospace;
+}

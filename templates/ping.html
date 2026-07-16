@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Ping 测试 - 用户管理系统{% endblock %}
+
+{% block content %}
+<div class="card ping-card">
+    <h2>Ping 网络诊断</h2>
+
+    <form method="post" action="/ping" class="ping-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="ping-row">
+            <input type="text" id="ip" name="ip" placeholder="输入 IP 地址或域名（如 8.8.8.8）" class="ping-input" value="{{ ip }}">
+            <button type="submit" class="btn btn-primary ping-btn">Ping</button>
+        </div>
+    </form>
+
+    {% if result is defined and result %}
+    <div class="ping-result">
+        <div class="ping-result-header">
+            <span class="ping-result-label">Ping 结果 - {{ ip }}</span>
+        </div>
+        <pre class="ping-console"><code>{{ result }}</code></pre>
+    </div>
+    {% endif %}
+
+    <div class="action-row">
+        <a href="/" class="btn btn-primary" style="width:auto;padding:10px 36px;">返回首页</a>
+    </div>
+</div>
+{% endblock %}
