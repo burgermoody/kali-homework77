@@ -525,7 +525,7 @@ def fetch_url():
 
 @app.route("/ping", methods=["GET", "POST"])
 def ping():
-    """Ping 网络诊断 — 使用系统命令 ping，不做输入过滤"""
+    """Ping 网络诊断 — 安全版本：校验输入为合法IP或域名"""
     if "username" not in session:
         return redirect(url_for("login"))
 
@@ -533,18 +533,23 @@ def ping():
     ip = ""
 
     if request.method == "POST":
-        ip = request.form.get("ip", "")
+        ip = request.form.get("ip", "").strip()
         if ip:
-            try:
-                cmd = f"ping -c 3 {ip}"
-                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=30)
-                result = output.decode("utf-8", errors="replace")
-            except subprocess.CalledProcessError as e:
-                result = e.output.decode("utf-8", errors="replace")
-            except subprocess.TimeoutExpired:
-                result = "Ping 超时（30 秒）"
-            except Exception as e:
-                result = f"执行错误：{str(e)}"
+            # 安全检查：只允许合法IP地址或域名（字母、数字、点、短横、冒号）
+            import re
+            if not re.match(r'^[a-zA-Z0-9.\-:]+$', ip):
+                result = "错误：输入包含非法字符，仅允许 IP 地址或域名"
+            else:
+                try:
+                    cmd = ["ping", "-c", "3", ip]
+                    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=30)
+                    result = output.decode("utf-8", errors="replace")
+                except subprocess.CalledProcessError as e:
+                    result = e.output.decode("utf-8", errors="replace")
+                except subprocess.TimeoutExpired:
+                    result = "Ping 超时（30 秒）"
+                except Exception as e:
+                    result = f"执行错误：{str(e)}"
 
     return render_template("ping.html", result=result, ip=ip)
 
