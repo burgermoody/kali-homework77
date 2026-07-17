@@ -557,7 +557,7 @@ def ping():
 
 @app.route("/xml-import", methods=["GET", "POST"])
 def xml_import():
-    """XML 数据导入 — 支持 XXE，读取本地文件"""
+    """XML 数据导入 — 安全版本：限制文件读取路径"""
     if "username" not in session:
         return redirect(url_for("login"))
 
@@ -570,6 +570,10 @@ def xml_import():
 
         if xml_data:
             try:
+                # 定义允许的导入目录
+                import_dir = os.path.join(BASE_DIR, "data", "import")
+                os.makedirs(import_dir, exist_ok=True)
+
                 # 检测 XML 中的实体定义，提取 SYSTEM 文件路径
                 entity_pattern = re.compile(r'<!ENTITY\s+\S+\s+SYSTEM\s+[\'"]([^\'"]+)[\'"]')
                 entity_match = entity_pattern.search(xml_data)
@@ -578,32 +582,39 @@ def xml_import():
 
                 if entity_match:
                     file_path = entity_match.group(1)
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            file_content = f.read().strip()
-                    except Exception as e:
-                        file_content = f"读取文件失败：{str(e)}"
+                    # 安全检查：规范化路径并验证在导入目录内
+                    real_path = os.path.realpath(file_path)
+                    allowed_dir = os.path.realpath(import_dir)
+                    if not real_path.startswith(allowed_dir + os.sep):
+                        error = f"不允许读取该路径下的文件"
+                    else:
+                        try:
+                            with open(real_path, "r", encoding="utf-8") as f:
+                                file_content = f.read().strip()
+                        except Exception as e:
+                            file_content = f"读取文件失败"
 
                 # 替换实体引用 &xxe; 为文件内容
-                if file_content:
+                if file_content and not error:
                     xml_data = re.sub(r'&xxe;', file_content, xml_data)
                     xml_data = re.sub(r'&xxe2;', file_content, xml_data)
 
-                # 解析 XML 提取用户数据
-                import xml.etree.ElementTree as ET
-                root = ET.fromstring(xml_data)
-                users = []
-                for user_elem in root.findall("user"):
-                    name = user_elem.findtext("name", "")
-                    email = user_elem.findtext("email", "")
-                    users.append({"name": name, "email": email})
+                if not error:
+                    # 解析 XML 提取用户数据
+                    import xml.etree.ElementTree as ET
+                    root = ET.fromstring(xml_data)
+                    users = []
+                    for user_elem in root.findall("user"):
+                        name = user_elem.findtext("name", "")
+                        email = user_elem.findtext("email", "")
+                        users.append({"name": name, "email": email})
 
-                result = json.dumps({"users": users}, ensure_ascii=False, indent=2)
+                    result = json.dumps({"users": users}, ensure_ascii=False, indent=2)
 
             except ET.ParseError as e:
-                error = f"XML 解析错误：{str(e)}"
+                error = f"XML 解析错误"
             except Exception as e:
-                error = f"处理失败：{str(e)}"
+                error = f"处理失败"
 
     return render_template("xml_import.html", result=result, error=error, xml_data=xml_data)
 
