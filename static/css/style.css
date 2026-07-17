@@ -643,3 +643,87 @@ a {
     color: #00ff41;
     font-family: 'DejaVu Sans Mono', monospace;
 }
+
+/* ===== XML 导入 ===== */
+.xml-card {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.xml-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'DejaVu Sans Mono', monospace;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+}
+
+.xml-textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.xml-result-section {
+    margin-top: 20px;
+}
+
+.xml-result-section h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.xml-result {
+    background: #1e1e1e;
+    color: #f0f0f0;
+    padding: 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.xml-result code {
+    background: none;
+    padding: 0;
+    color: #f0f0f0;
+    font-family: 'DejaVu Sans Mono', monospace;
+}
+
+.xml-example {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.xml-example h3 {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.xml-example-code {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.xml-example-code code {
+    background: none;
+    padding: 0;
+    font-family: 'DejaVu Sans Mono', monospace;
+}

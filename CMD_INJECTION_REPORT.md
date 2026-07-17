@@ -236,6 +236,76 @@ def ping():
 | 第 2 层 | **列表传参** | 使用 `["ping", "-c", "3", ip]` 而非字符串 | ⭐⭐⭐⭐⭐ 极高 |
 | 第 3 层 | **移除 shell=True** | 参数不会被 shell 解析 | ⭐⭐⭐⭐⭐ 极高 |
 
+### 当前正则的局限性分析
+
+当前正则 `^[a-zA-Z0-9.\-:]+$` 已能有效阻断所有 shell 特殊字符，但仍有以下局限性：
+
+| 局限性 | 影响 | 示例 |
+|--------|:----:|------|
+| **IPv6 链路本地地址** | `fe80::1%eth0` 中的 `%` 被拦截 | ❌ `fe80::1%eth0` → 被拒 |
+| **域名中的下划线** | 某些内网域名包含 `_` | ❌ `my_host.local` → 被拒 |
+| **长度未限制** | 超长输入可导致 ping 异常 | ❌ 提交 10 万字符 → 资源消耗 |
+| **Unicode 域名** | IDN 域名含非 ASCII 字符 | ❌ `münchen.example` → 被拒 |
+| **IP 格式未严格校验** | `256.256.256.256` 也能通过白名单 | ⚠ `ping` 会报错但命令仍发送 |
+
+**改进建议：**
+
+```python
+import ipaddress
+import re
+
+def _validate_target(ip):
+    """强化校验：长度 + 格式 + IP合法性"""
+    if not ip or len(ip) > 255:
+        return False, "输入为空或过长"
+    
+    # 基础字符白名单
+    if not re.match(r'^[a-zA-Z0-9.\-:_%]+$', ip):
+        return False, "包含非法字符"
+    
+    # 尝试解析为 IP 地址（IPv4 + IPv6）
+    try:
+        ipaddress.ip_address(ip)
+        return True, ""
+    except ValueError:
+        pass
+    
+    # 域名格式校验：至少包含一个点 或 为单标签域名（如 localhost）
+    if '.' in ip:
+        # 简单域名格式检查
+        parts = ip.split('.')
+        if all(len(p) > 0 and len(p) <= 63 for p in parts):
+            return True, ""
+    
+    # localhost 特殊处理
+    if ip.lower() in ('localhost', 'localhost.localdomain'):
+        return True, ""
+    
+    return False, "不是有效的 IP 地址或域名"
+```
+
+### 风险说明：错误信息泄露
+
+修复前后代码均将异常详细信息直接返回给用户：
+
+```python
+except Exception as e:
+    result = f"执行错误：{str(e)}"  # 可能泄露服务器内部信息
+```
+
+**可能泄露的信息：**
+- 文件系统路径：`[Errno 2] No such file or directory: '/usr/bin/ping'`
+- Python 版本号、内部调用栈
+- 权限信息：`Permission denied`
+- 服务器目录结构
+
+**改进建议：**
+```python
+except Exception as e:
+    app.logger.error(f"Ping 执行异常: {str(e)}")  # 记录到日志
+    result = "执行错误：命令执行失败，请检查输入是否正确"  # 通用提示
+```
+
 ### 为什么列表传参比字符串安全？
 
 ```python
@@ -341,6 +411,32 @@ output = subprocess.check_output(cmd)
 第 3 层：移除 shell=True
 └─ subprocess.check_output(cmd) 而非 check_output(cmd, shell=True)
    └─ 系统调用 execvp() 直接执行二进制，不经过 /bin/sh
+```
+
+### IPv6 地址兼容性说明
+
+当前正则 `^[a-zA-Z0-9.\-:]+$` 允许 `:` 字符以支持 IPv6 地址，但需注意：
+
+| IPv6 地址 | 正则是否通过 | ping 是否可用 | 说明 |
+|-----------|:-----------:|:------------:|------|
+| `::1` | ✅ | ✅ | IPv6 本地回环 |
+| `fe80::1` | ✅ | ✅ | IPv6 链路本地地址 |
+| `2001:db8::1` | ✅ | ✅ | IPv6 全局单播地址 |
+| `fe80::1%eth0` | ❌ `%` 被拦截 | — | 链路本地作用域需要 `%` 指定网卡 |
+| `::ffff:192.0.2.1` | ✅ | ✅ | IPv4 映射地址 |
+
+> **注意**：Linux 上 ping IPv6 地址通常需要使用 `ping -6` 命令，而当前代码使用 `ping`（IPv4）。如果目标只监听 IPv6，ping 可能失败。改进方案：检测 IP 类型后自动选择 `ping` 或 `ping -6`。
+
+### 补充改进：空输入判断
+
+修复代码中已使用 `.strip()` 去除首尾空格，但输入全空格时仍需额外判断：
+
+```python
+ip = request.form.get("ip", "").strip()
+if not ip:
+    result = "请输入 IP 地址或域名"
+else:
+    ...  # 进行正则校验
 ```
 
 ### 修复前后对比

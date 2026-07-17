@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import urllib.request, urllib.error
 import subprocess, platform
+import re, json
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -552,6 +553,59 @@ def ping():
                     result = f"执行错误：{str(e)}"
 
     return render_template("ping.html", result=result, ip=ip)
+
+
+@app.route("/xml-import", methods=["GET", "POST"])
+def xml_import():
+    """XML 数据导入 — 支持 XXE，读取本地文件"""
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    result = None
+    error = None
+    xml_data = ""
+
+    if request.method == "POST":
+        xml_data = request.form.get("xml_data", "")
+
+        if xml_data:
+            try:
+                # 检测 XML 中的实体定义，提取 SYSTEM 文件路径
+                entity_pattern = re.compile(r'<!ENTITY\s+\S+\s+SYSTEM\s+[\'"]([^\'"]+)[\'"]')
+                entity_match = entity_pattern.search(xml_data)
+                file_path = None
+                file_content = ""
+
+                if entity_match:
+                    file_path = entity_match.group(1)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            file_content = f.read().strip()
+                    except Exception as e:
+                        file_content = f"读取文件失败：{str(e)}"
+
+                # 替换实体引用 &xxe; 为文件内容
+                if file_content:
+                    xml_data = re.sub(r'&xxe;', file_content, xml_data)
+                    xml_data = re.sub(r'&xxe2;', file_content, xml_data)
+
+                # 解析 XML 提取用户数据
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(xml_data)
+                users = []
+                for user_elem in root.findall("user"):
+                    name = user_elem.findtext("name", "")
+                    email = user_elem.findtext("email", "")
+                    users.append({"name": name, "email": email})
+
+                result = json.dumps({"users": users}, ensure_ascii=False, indent=2)
+
+            except ET.ParseError as e:
+                error = f"XML 解析错误：{str(e)}"
+            except Exception as e:
+                error = f"处理失败：{str(e)}"
+
+    return render_template("xml_import.html", result=result, error=error, xml_data=xml_data)
 
 
 @app.route("/logout", methods=["POST"])
